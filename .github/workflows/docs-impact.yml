@@ -3,6 +3,12 @@ name: Documentation impact
 on:
   pull_request:
     paths: [openapi.json, 'docs/**']
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: Base commit containing the previous OpenAPI contract
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -11,6 +17,9 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,8 +29,8 @@ jobs:
           node-version: 22
       - name: Find changed documentation
         id: changed
-        run: echo "files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | paste -sd, -)" >> "$GITHUB_OUTPUT"
+        run: echo "files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | paste -sd, -)" >> "$GITHUB_OUTPUT"
       - name: Check mapped documentation
         run: |
-          git show ${{ github.event.pull_request.base.sha }}:openapi.json > "$RUNNER_TEMP/openapi.before.json"
+          git show "$BASE_SHA":openapi.json > "$RUNNER_TEMP/openapi.before.json"
           CHANGED_FILES="${{ steps.changed.outputs.files }}" node scripts/check-doc-impact.mjs "$RUNNER_TEMP/openapi.before.json" openapi.json
